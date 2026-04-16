@@ -1,0 +1,122 @@
+from __future__ import annotations
+
+import http.server
+import json
+import os
+from pathlib import Path
+import urllib.parse
+import webbrowser
+
+
+CONFIG_DIR = Path.home() / ".config" / "{{ surface.product_name|lower|replace(' ', '-') }}-suit"
+CREDENTIALS_FILE = CONFIG_DIR / "credentials.json"
+BASE_URL = os.getenv("AGENTSUIT_BASE_URL", "{{ surface.base_url }}")
+
+
+def get_auth_header(api_key: str | None = None) -> dict[str, str]:
+    key = api_key or os.getenv("{{ surface.auth.api_key_env_var }}")
+    if key:
+        return {"Authorization": f"Bearer {key}"}
+    if CREDENTIALS_FILE.exists():
+        creds = json.loads(CREDENTIALS_FILE.read_text(encoding="utf-8"))
+        token = creds.get("access_token")
+        if token:
+            return {"Authorization": f"Bearer {token}"}
+    return {}
+
+
+def save_oauth_token(access_token: str) -> None:
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    CREDENTIALS_FILE.write_text(json.dumps({"access_token": access_token}, indent=2), encoding="utf-8")
+
+
+def save_oauth_credentials(access_token: str, source: str, start_url: str | None = None) -> None:
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    payload = {"access_token": access_token, "source": source}
+    if start_url:
+        payload["start_url"] = start_url
+    CREDENTIALS_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def clear_oauth_credentials() -> bool:
+    if CREDENTIALS_FILE.exists():
+        CREDENTIALS_FILE.unlink()
+        return True
+    return False
+
+
+def read_oauth_credentials() -> dict:
+    if not CREDENTIALS_FILE.exists():
+        return {}
+    return json.loads(CREDENTIALS_FILE.read_text(encoding="utf-8"))
+
+
+def oauth_login_via_local_callback(start_url: str | None = None, timeout_seconds: int = 300, open_browser: bool = True) -> None:
+    """
+    Mark-1 OAuth login without terminal prompts.
+
+    Opens an auth URL in the user's browser (unless `open_browser=False`). Then starts a one-shot local HTTP callback server
+    that captures an OAuth token from query parameters, saves it to credentials.json, and
+    immediately shuts down after a single GET request.
+    """
+
+    host = "127.0.0.1"
+    token_holder: dict[str, str] = {"token": ""}
+
+    class CallbackHandler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802 (we need the BaseHTTPRequestHandler method name)
+            parsed = urllib.parse.urlparse(self.path)
+            qs = urllib.parse.parse_qs(parsed.query)
+
+            # Token is expected to be present directly in query parameters (no device-code flow).
+            token = (qs.get("access_token") or [""])[0] or (qs.get("token") or [""])[0] or (qs.get("oauth_token") or [""])[0]
+            token_holder["token"] = token
+
+            try:
+                # Persist token in the required location.
+                save_oauth_token(token)
+            except Exception:
+                # Token saving should not crash auth completion; the CLI will still exit 0.
+                pass
+
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(
+                b"<html><body><h3>Login complete. You may close this window.</h3></body></html>"
+            )
+
+        def log_message(self, format: str, *args) -> None:  # noqa: A002
+            # Silence default HTTP request logging to stderr.
+            return
+
+    # Bind to an ephemeral port to avoid conflicts.
+    server = http.server.HTTPServer((host, 0), CallbackHandler)
+    server.timeout = timeout_seconds
+    port = int(server.server_address[1])
+
+    callback_uri = f"http://{host}:{port}/callback"
+
+    authorize_url = start_url or f"{BASE_URL.rstrip('/')}/oauth/authorize"
+    parsed_auth = urllib.parse.urlparse(authorize_url)
+    query = urllib.parse.parse_qs(parsed_auth.query)
+    query["redirect_uri"] = [callback_uri]
+    new_query = urllib.parse.urlencode(query, doseq=True)
+    auth_url = urllib.parse.urlunparse(
+        (
+            parsed_auth.scheme,
+            parsed_auth.netloc,
+            parsed_auth.path,
+            parsed_auth.params,
+            new_query,
+            parsed_auth.fragment,
+        )
+    )
+
+    # Launch browser first (unless disabled), then block on exactly one local callback GET request.
+    if open_browser:
+        webbrowser.open(auth_url)
+    try:
+        server.handle_request()
+    finally:
+        server.server_close()

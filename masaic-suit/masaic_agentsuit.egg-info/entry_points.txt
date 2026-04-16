@@ -1,0 +1,2 @@
+[console_scripts]
+masaic-suit = agentsuit.cli:app

@@ -1,0 +1,237 @@
+{
+  "product_name": "masaic",
+  "base_url": "http://localhost:8080",
+  "auth": {
+    "supports_api_key": true,
+    "supports_oauth": true,
+    "api_key_env_var": "MASAIC_API_KEY"
+  },
+  "resources": [
+    {
+      "name": "agents",
+      "operations": [
+        {
+          "operation_id": "get_agent",
+          "method": "GET",
+          "path": "/v1/agents/{agentName}",
+          "summary": "GET /v1/agents/{agentName}",
+          "request_body_type": null,
+          "response_type": "ResponseEntity<PlatformAgent>",
+          "supports_streaming": false,
+          "params": [
+            {
+              "name": "agentName",
+              "source": "path",
+              "required": true,
+              "data_type": "String,"
+            }
+          ]
+        },
+        {
+          "operation_id": "save_agent",
+          "method": "POST",
+          "path": "/v1/agents",
+          "summary": "POST /v1/agents",
+          "request_body_type": "PlatformAgent,",
+          "response_type": "ResponseEntity<PlatformAgent>",
+          "supports_streaming": false,
+          "params": [
+            {
+              "name": "agent",
+              "source": "body",
+              "required": true,
+              "data_type": "PlatformAgent,"
+            }
+          ]
+        },
+        {
+          "operation_id": "update_agent",
+          "method": "PUT",
+          "path": "/v1/agents/{agentName}",
+          "summary": "PUT /v1/agents/{agentName}",
+          "request_body_type": "PlatformAgent,",
+          "response_type": "ResponseEntity<PlatformAgent>",
+          "supports_streaming": false,
+          "params": [
+            {
+              "name": "agentName",
+              "source": "path",
+              "required": true,
+              "data_type": "String,"
+            },
+            {
+              "name": "agent",
+              "source": "body",
+              "required": true,
+              "data_type": "PlatformAgent,"
+            }
+          ]
+        },
+        {
+          "operation_id": "list_agents",
+          "method": "GET",
+          "path": "/v1/agents",
+          "summary": "GET /v1/agents",
+          "request_body_type": null,
+          "response_type": "ResponseEntity<List<PlatformAgent>>",
+          "supports_streaming": false,
+          "params": []
+        },
+        {
+          "operation_id": "delete_agent",
+          "method": "DELETE",
+          "path": "/v1/agents/{agentName}",
+          "summary": "DELETE /v1/agents/{agentName}",
+          "request_body_type": null,
+          "response_type": "ResponseEntity<Unit>",
+          "supports_streaming": false,
+          "params": [
+            {
+              "name": "agentName",
+              "source": "path",
+              "required": true,
+              "data_type": "String,"
+            }
+          ]
+        },
+        {
+          "operation_id": "chat_with_agent_builder",
+          "method": "POST",
+          "path": "/v1/agents/agent-builder/chat",
+          "summary": "POST /v1/agents/agent-builder/chat",
+          "request_body_type": "AgentBuilderChatRequest,",
+          "response_type": "ResponseEntity<Flow<ServerSentEvent<*>>>",
+          "supports_streaming": true,
+          "params": [
+            {
+              "name": "agentBuilderChatRequest",
+              "source": "body",
+              "required": true,
+              "data_type": "AgentBuilderChatRequest,"
+            }
+          ]
+        },
+        {
+          "operation_id": "ask_agent",
+          "method": "POST",
+          "path": "/v1/agents/{agentName}/ask",
+          "summary": "POST /v1/agents/{agentName}/ask",
+          "request_body_type": "AskAgentRequest,",
+          "response_type": "ResponseEntity<AskAgentResponse>",
+          "supports_streaming": false,
+          "params": [
+            {
+              "name": "agentName",
+              "source": "path",
+              "required": true,
+              "data_type": "String,"
+            },
+            {
+              "name": "request",
+              "source": "body",
+              "required": true,
+              "data_type": "AskAgentRequest,"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "responses",
+      "operations": [
+        {
+          "operation_id": "create_response",
+          "method": "POST",
+          "path": "/v1/responses",
+          "summary": "POST /v1/responses",
+          "request_body_type": "CreateResponseRequest,",
+          "response_type": "ResponseEntity<*>",
+          "supports_streaming": true,
+          "params": [
+            {
+              "name": "request",
+              "source": "body",
+              "required": true,
+              "data_type": "CreateResponseRequest,"
+            }
+          ]
+        },
+        {
+          "operation_id": "get_response",
+          "method": "GET",
+          "path": "/v1/responses/{responseId}",
+          "summary": "GET /v1/responses/{responseId}",
+          "request_body_type": null,
+          "response_type": "ResponseEntity<*>",
+          "supports_streaming": false,
+          "params": [
+            {
+              "name": "responseId",
+              "source": "path",
+              "required": true,
+              "data_type": "String,"
+            }
+          ]
+        },
+        {
+          "operation_id": "delete_response",
+          "method": "DELETE",
+          "path": "/v1/responses/{responseId}",
+          "summary": "DELETE /v1/responses/{responseId}",
+          "request_body_type": null,
+          "response_type": "ResponseEntity<Map<String",
+          "supports_streaming": false,
+          "params": [
+            {
+              "name": "responseId",
+              "source": "path",
+              "required": true,
+              "data_type": "String,"
+            }
+          ]
+        },
+        {
+          "operation_id": "list_input_items",
+          "method": "GET",
+          "path": "/v1/responses/{responseId}/input_items",
+          "summary": "GET /v1/responses/{responseId}/input_items",
+          "request_body_type": null,
+          "response_type": "ResponseEntity<ResponseInputItemList>",
+          "supports_streaming": false,
+          "params": [
+            {
+              "name": "responseId",
+              "source": "path",
+              "required": true,
+              "data_type": "String,"
+            },
+            {
+              "name": "limit",
+              "source": "query",
+              "required": false,
+              "data_type": "Int,"
+            },
+            {
+              "name": "order",
+              "source": "query",
+              "required": false,
+              "data_type": "String,"
+            },
+            {
+              "name": "after",
+              "source": "query",
+              "required": false,
+              "data_type": "String?,"
+            },
+            {
+              "name": "before",
+              "source": "query",
+              "required": false,
+              "data_type": "String?,"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
