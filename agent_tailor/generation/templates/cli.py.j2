@@ -1,0 +1,119 @@
+from __future__ import annotations
+
+import json
+import os
+
+import typer
+
+from .auth import clear_oauth_credentials, oauth_login_via_local_callback, read_oauth_credentials, save_oauth_credentials
+from .http_client import request_json, request_stream
+
+
+app = typer.Typer(help="{{ surface.product_name }} AgentSuit CLI")
+auth_app = typer.Typer(help="Authentication commands")
+app.add_typer(auth_app, name="auth")
+BASE_URL = os.getenv("AGENTSUIT_BASE_URL", "{{ surface.base_url }}")
+
+
+@auth_app.command("login")
+def auth_login(
+    token: str | None = typer.Option(None, "--token", help="OAuth access token override (skips browser/callback)."),
+    start_url: str = typer.Option("", "--start-url", help="Optional OAuth authorize URL."),
+    no_browser: bool = typer.Option(False, "--no-browser", help="Do not open a browser; wait for local callback instead."),
+):
+    """
+    Mark-1 OAuth flow (local callback):
+    - Opens auth URL in browser (unless --no-browser)
+    - Captures token from a localhost callback GET request (unless --token is provided)
+    """
+    if token:
+        save_oauth_credentials(token, source="cli_token", start_url=start_url or None)
+    else:
+        oauth_login_via_local_callback(start_url=start_url or None, open_browser=not no_browser)
+    creds = read_oauth_credentials()
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "data": {
+                    "api_key_env_var": "{{ surface.auth.api_key_env_var }}",
+                    "api_key_present": bool(os.getenv("{{ surface.auth.api_key_env_var }}")),
+                    "oauth_logged_in": bool(creds.get("access_token")),
+                    "oauth_source": creds.get("source"),
+                    "oauth_start_url": creds.get("start_url") or (start_url or None),
+                },
+                "meta": {"command": "auth.login"},
+            },
+            indent=2,
+        )
+    )
+
+
+@auth_app.command("status")
+def auth_status():
+    key_present = bool(os.getenv("{{ surface.auth.api_key_env_var }}"))
+    creds = read_oauth_credentials()
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "data": {
+                    "api_key_env_var": "{{ surface.auth.api_key_env_var }}",
+                    "api_key_present": key_present,
+                    "oauth_logged_in": bool(creds.get("access_token")),
+                    "oauth_source": creds.get("source"),
+                    "oauth_start_url": creds.get("start_url"),
+                },
+            },
+            indent=2,
+        )
+    )
+
+
+@auth_app.command("logout")
+def auth_logout():
+    removed = clear_oauth_credentials()
+    print(json.dumps({"ok": True, "data": {"oauth_logged_out": removed}}))
+
+{% for resource in surface.resources %}
+{{ resource.name }}_app = typer.Typer(help="{{ resource.name }} operations")
+app.add_typer({{ resource.name }}_app, name="{{ resource.name }}")
+
+{% for op in resource.operations %}
+@{{ resource.name }}_app.command("{{ command_name_for(op.path, op.method, op.operation_id) }}")
+def {{ resource.name }}_{{ op.operation_id }}(
+    {% for p in op.params %}
+    {% if p.source in ["path", "query"] %}
+    {{ p.name }}: str{% if not p.required %} | None{% endif %} = typer.Option({% if p.required %}...{% else %}None{% endif %}, "--{{ p.name|replace('_','-') }}", help="{{ p.source }} parameter"),
+    {% endif %}
+    {% endfor %}
+    json_body: str = typer.Option("", "--json", help="Raw JSON request body."),
+    {% if op.supports_streaming %}
+    stream: bool = typer.Option(False, "--stream", help="Stream SSE response as NDJSON."),
+    {% endif %}
+    api_key: str = typer.Option("", "--api-key", help="API key override."),
+):
+    path = "{{ op.path }}"
+    {% for p in op.params %}
+    {% if p.source == "path" %}
+    path = path.replace("{{ '{' + p.name + '}' }}", {{ p.name }})
+    {% endif %}
+    {% endfor %}
+
+    query = {
+    {% for p in op.params if p.source == "query" %}
+        "{{ p.name }}": {{ p.name }},
+    {% endfor %}
+    }
+    body = json.loads(json_body) if json_body else None
+    {% if op.supports_streaming %}
+    if stream:
+        for event in request_stream("{{ op.method }}", BASE_URL, path, params=query, body=body, api_key=api_key or None):
+            print(json.dumps(event))
+        return
+    {% endif %}
+    result = request_json("{{ op.method }}", BASE_URL, path, params=query, body=body, api_key=api_key or None)
+    print(json.dumps(result, indent=2))
+
+{% endfor %}
+{% endfor %}

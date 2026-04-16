@@ -1,0 +1,38 @@
+# {{ surface.product_name }} AgentSuit Skill
+
+## What this provides
+
+- Installable Python CLI for your API
+- Structured JSON responses for agent loops (`ok`, `data`, `meta` on success)
+- CLI auth commands for API key + OAuth-like workflow
+
+## Setup
+
+```bash
+pip install -e .
+export {{ surface.auth.api_key_env_var }}=YOUR_API_KEY
+```
+
+Optional OAuth-style login:
+
+```bash
+{{ surface.product_name|lower|replace(' ', '-') }}-suit auth login
+{{ surface.product_name|lower|replace(' ', '-') }}-suit auth status
+```
+
+## Command surface
+
+{% for resource in surface.resources %}
+### {{ resource.name }}
+{% for op in resource.operations %}
+- `{{ surface.product_name|lower|replace(' ', '-') }}-suit {{ resource.name }} {{ command_name_for(op.path, op.method, op.operation_id) }}` -> `{{ op.method }} {{ op.path }}`
+{% endfor %}
+
+{% endfor %}
+## Agent loop guidance
+
+1. Call list/get commands to gather state.
+2. Use create/update/delete commands to apply changes.
+3. Parse JSON from stdout and branch on `ok`.
+4. On non-zero exit codes, inspect stderr JSON with `error.status_code` for retry logic.
+5. For streaming commands (`--stream`), read each line as an independent JSON event envelope.
